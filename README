@@ -1,4 +1,4 @@
-This is a basic set of python tools to analyze chatlogs and manipulate that 
+This is a basic set of python3ools to analyze chatlogs and manipulate that 
 data. As I learn more about the Natural Language ToolKit (NLTK) I will add more
 of that functionality. At the moment most functionality is statistical time 
 series analysis. The tools use SQLite databases for persistence and to avoid
