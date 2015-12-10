@@ -1,0 +1,43 @@
+This is a basic set of python tools to analyze chatlogs and manipulate that 
+data. As I learn more about the Natural Language ToolKit (NLTK) I will add more
+of that functionality. At the moment most functionality is statistical time 
+series analysis. The tools use SQLite databases for persistence and to avoid
+expensive parsing when performing multiple operations on the same dataset.
+
+Getting started:
+
+First you will want to create a master database containing all messages from 
+the sources you want to analyze. There are a few tools to do this included 
+with the prefix parse_* that are self documenting. The first argument should
+be a database to append to (or create) and the remaining depend on the program.
+
+For example, after downloading your data from Google Hangouts from Google 
+Takeout https://myaccount.google.com/privacy#takeout the archive can be used
+to create a database as follows:
+
+  ./parse_hangouts gchat.db takeout-20151210T032131Z.tgz
+
+Analysis:
+
+The basic functionality starts with iterating over or counting sqlite 
+queries against a relational database containing the fields:
+
+  (timestamp,src,dest,msg)
+
+The exact meanings of src,dest,msg varry from source to source, but the
+timestamp is UNIX UTC seconds since Jan 1, 1970. The database class
+provides a function to iterate over querried results returned as messages:
+
+  [msg for msg in db.get_iter('src LIKE ?','BenLand100%')]
+
+This will efficiently build a list of messages where the source satisfies the
+optional SQLite constraint. The function count will return the number of rows
+if further inspection is not required.
+
+A few simple programs with simple output are included.
+ * test.py - prints statistics about a database with an optional src pattern
+ * crunch.py - dumps a CSV timeseries of message lengths to stdout
+ * wordprofile.py - dumps word statistics as CSV to stdout
+
+There is additionally markov.py which will train a simple ngram markov chain
+and generate random text based on a seed.

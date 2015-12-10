@@ -1,4 +1,22 @@
 #!/usr/bin/env python3
+'''
+ *  Copyright 2015 by Benjamin J. Land (a.k.a. BenLand100)
+ *
+ *  This file is part of chatlogs.
+ *
+ *  chatlogs is free software: you can redistribute it and/or modify
+ *  it under the terms of the GNU General Public License as published by
+ *  the Free Software Foundation, either version 3 of the License, or
+ *  (at your option) any later version.
+ *
+ *  chatlogs is distributed in the hope that it will be useful,
+ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+ *  GNU General Public License for more details.
+ *
+ *  You should have received a copy of the GNU General Public License
+ *  along with chatlogs. If not, see <http://www.gnu.org/licenses/>.
+'''
 
 import os
 import glob
@@ -43,11 +61,11 @@ class database:
             return True
         except:
             return False
-    def count(self,where=None):
-        row = next(self._db.execute('SELECT count(timestamp) FROM messages' + (' WHERE ' + where if where else '')),None)
+    def count(self,where=None,args=()):
+        row = next(self._db.execute('SELECT count(timestamp) FROM messages' + (' WHERE ' + where if where else ''),args),None)
         return row[0] if row else 0
-    def get_iter(self,where=None):
-        for row in self._db.execute('SELECT timestamp,src,dest,msg FROM messages' + (' WHERE ' + where if where else '')):
+    def get_iter(self,where=None,args=()):
+        for row in self._db.execute('SELECT timestamp,src,dest,msg FROM messages' + (' WHERE ' + where if where else ''),args):
             yield message(row[0],row[1],row[2],row[3])
         
         
@@ -56,7 +74,7 @@ months = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':
 lines = 0
 failed = 0
 
-def process_irc(db,path):
+def parse_irc(db,path):
     global lines, failed
     base = os.path.basename(path).rsplit('.',1)[0]
     chan = base[base.find('#'):]
@@ -124,12 +142,3 @@ def process_hangouts(db,path):
             msg = message(int(int(timestamp)/10**6),people[sender_id["gaia_id"]],'ME',' '.join(text))
             db.add(msg)
     db.commit()
-        
-                
-
-def load_sets(db):
-    for path in glob.glob('sets/*irc*/*.log'):
-        print('Loading...',path)
-        process_irc(db,path)
-        db.commit()
-    print(lines,failed,float(failed)/float(lines))
