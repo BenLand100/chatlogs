@@ -5,6 +5,7 @@ import glob
 import pytz
 import sqlite3
 import datetime
+import tarfile
 import json
 import statistics
 
@@ -81,6 +82,49 @@ def process_irc(db,path):
                     db.add(msg)
             except Exception as e:
                 failed = failed + 1
+               
+
+def process_hangouts(db,path):
+    global lines, failed
+    tar = tarfile.open(path,'r:*')
+    f = tar.extractfile('Takeout/Hangouts/Hangouts.json')
+    data = json.loads(f.read().decode())
+    f.close()
+    tar.close()
+    for conversation in data["conversation_state"]:
+        initial_timestamp = conversation["response_header"]["current_server_time"]
+        conversation_id = conversation["conversation_id"]["id"]
+        
+        people = {}
+        
+        for participant in conversation["conversation_state"]["conversation"]["participant_data"]:
+            gaia_id = participant["id"]["gaia_id"]
+            chat_id = participant["id"]["chat_id"]
+            try:
+                name = participant["fallback_name"]
+            except:
+                name = 'UNKNOWN'
+            people[gaia_id] = name
+
+        for event in conversation["conversation_state"]["event"]:
+            event_id = event["event_id"]
+            sender_id = event["sender_id"] # has dict values "gaia_id" and "chat_id"
+            timestamp = event["timestamp"]
+            text = list()
+            try:
+                message_content = event["chat_message"]["message_content"]
+                try:
+                    for segment in message_content["segment"]:
+                        if segment["type"].lower() in ("TEXT".lower(), "LINK".lower()):
+                            text.append(segment["text"].strip())
+                except KeyError:
+                    pass 
+            except KeyError:
+                continue 
+            msg = message(int(int(timestamp)/10**6),people[sender_id["gaia_id"]],'ME',' '.join(text))
+            db.add(msg)
+    db.commit()
+        
                 
 
 def load_sets(db):

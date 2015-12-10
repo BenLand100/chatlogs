@@ -1,26 +1,27 @@
 #!/usr/bin/env python3
 
+import sys
+from math import *
 import tools
 import statistics
 
-def stats(db):
-    nicks = ['BenLand100','Treebeard','TheDoctor','Colquhoun']
-    lines = [db.count('src="'+nick+'" AND (dest="#srl" OR dest="#srl-thinktank")') for nick in nicks]
-    grandtotal = db.count('NOT src="*" AND (dest="#srl" OR dest="#srl-thinktank")')
+def stats(db,like='%'):
+    lines = db.count('src LIKE "'+like+'"') 
 
-    print('All lines',grandtotal)
-    print('Nicks',nicks)
+    msglens = [len(msg.msg) for msg in db.get_iter('src LIKE "'+like+'"')]
+
+    mean = statistics.mean(msglens) 
+    stde = statistics.stdev(msglens)
+    rootnorm = lambda lst: sqrt(sum(lst))/sqrt(len(lst))
+    rmshi = rootnorm([(msglen - mean)**2.0 for msglen in msglens if msglen > mean])
+    rmslo = rootnorm([(msglen - mean)**2.0 for msglen in msglens if msglen < mean])
+
+    print('Pattern',like)
     print('Line Counts',lines)
-    print('Line Fractions',[line/grandtotal for line in lines])
-
-    msglens = [[len(msg.msg) for msg in db.get_iter('src="'+nick+'" AND (dest="#srl" OR dest="#srl-thinktank")')] for nick in nicks]
-
-    means = [statistics.mean(msglen) for msglen in msglens]
-    stdev = [statistics.stdev(msglen) for msglen in msglens]
-
-    print('Mean chars',means)
-    print('Stdev chars',stdev)
+    print('Mean chars',mean)
+    print('Stdev chars',stde)
+    print('RMS hi/lo',rmshi,'/',rmslo)
     
 
 db = tools.database(sys.argv[1])
-stats(db)
+stats(db,sys.argv[2] if len(sys.argv) == 3 else None)
