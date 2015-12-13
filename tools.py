@@ -70,6 +70,9 @@ class database:
     def get_iter(self,where=None,args=()):
         for row in self._db.execute('SELECT timestamp,src,dest,msg,cls FROM messages' + (' WHERE ' + where if where else ''),args):
             yield message(row[0],row[1],row[2],row[3],row[4])
+    def get_time_iter(self,where=None,args=()):
+        for row in self._db.execute('SELECT timestamp,src,dest,msg,cls FROM messages' + (' WHERE ' + where if where else '') + ' ORDER BY timestamp',args):
+            yield message(row[0],row[1],row[2],row[3],row[4])
         
         
 
@@ -201,10 +204,16 @@ def process_msn(db,path):
                     time,rest = line.split(']',1)
                     dt = tz.localize(datetime.datetime.strptime(time + date,'[%I:%M:%S %p%B %d, %Y'))
                     rest = rest.strip('\t\n\r ')
-                    try:
-                        who,rest = rest.split(': ')
-                    except:
+                    if len(rest) < 1:
+                        failed = failed + 1
+                    elif rest[0] != '*':
+                        try:
+                            who,rest = rest.split(': ',1)
+                        except:
+                            who = '*'
+                    else:
                         who = '*'
+                        rest = rest[2:]
                     try:
                         email = people[who]
                     except:
@@ -215,7 +224,7 @@ def process_msn(db,path):
                                 break
                     lastmsg = message(dt,email,'MSNCONVO',rest,'MSN-WIN')
                 else:
-                    lastmsg.msg += line.strip(' \t\n\r')
+                    lastmsg.msg += ' ' + line.strip(' \t\n\r')
             if lastmsg:
                 db.add(lastmsg)
     db.commit()
