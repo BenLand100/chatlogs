@@ -22,10 +22,12 @@ import os
 import re
 import glob
 import pytz
-import sqlite3
-import datetime
-import tarfile
+import nltk
 import json
+import sqlite3
+import tarfile
+import enchant
+import datetime
 import statistics
 
 class message:
@@ -217,4 +219,33 @@ def process_msn(db,path):
             if lastmsg:
                 db.add(lastmsg)
     db.commit()
+  
+
+class suggester:
+    def __init__(self,maxdist=0,spelling=enchant.Dict("en_US")):
+        self._suggested, self._valid, self._invalid = {}, set(), set()
+        self._maxdist = maxdist
+        self._spelling = spelling
     
+    def suggest(self,word):
+        if word in self._valid:
+            return word
+        if word in self._invalid:
+            return None
+        if word in self._suggested:
+            return self._suggested[word]
+            
+        if self._spelling.check(word):
+            self._valid.add(word)
+            return word
+            
+        if maxdist > 0:    
+            suggestions = self._spelling.suggest(word)
+            if suggestions and nltk.edit_distance(word, suggestions[0]) <= self._maxdist:
+                self._suggested[word] = suggestions[0]
+                return suggestions[0]
+            else:
+                self._invalid.add(word)
+                return None
+        else:
+            self._invalid.add(word)  

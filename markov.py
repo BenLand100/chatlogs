@@ -19,8 +19,9 @@
 '''
 
 import collections
-import random
+import hashlib
 import sqlite3
+import random
 import string
 import tools
 import nltk
@@ -35,13 +36,15 @@ class mkchain:
         else:
             self._chain = chain
         self._ngramlen = ngramlen
-        self._table = 'chain_'+str(ngramlen)+'_'+src+'_'+str(maxlen)
+        self._table = 'chain_'+str(ngramlen)+'_'+hashlib.md5(src.encode('utf8')).hexdigest()+'_'+str(maxlen)
         if not next(self._chain.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?',(self._table,)),None):
+            print('Please wait... generating ngram table')
             self._chain.execute('CREATE TABLE '+self._table+' ('+', '.join([chr(x+ord('a'))+' VARCHAR' for x in range(ngramlen)])+', count INTEGER)')
             self._chain.execute('CREATE UNIQUE INDEX ngram_'+self._table+' ON '+self._table+'('+(', '.join([chr(x+ord('a')) for x in range(ngramlen)]))+')')
             nick = 'src LIKE "'+src+'"' if src != 'ALL' else 'src != "*"'
             for i in db.get_iter(' AND '.join([nick])):
-                tokens = nltk.word_tokenize(i.msg.lower())
+                thin = ' '.join([x.lower() for x in i.msg.split(' ') if len(x) <= maxlen])
+                tokens = nltk.word_tokenize(thin)
                 words = [x for x in tokens if len(x) <= maxlen]
                 for n in range(1,len(words)-self._ngramlen+1):
                     cur = self._chain.execute('UPDATE '+self._table+' SET count = count+1 WHERE '+' AND '.join([chr(x+ord('a'))+'=?' for x in range(ngramlen)]),tuple([words[x] for x in range(n,n+ngramlen)]))

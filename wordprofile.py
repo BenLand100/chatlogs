@@ -19,28 +19,47 @@
 '''
 
 import collections
+import nltk
 import string
 import tools
 import json
 import sys
 import re
+import multiprocessing
+import enchant
 
-if len(sys.argv) < 4:
-    print('./wordprofile.py database num maxlen src [msg]')
+if len(sys.argv) < 5:
+    print('./wordprofile.py database num splittype maxlen src+')
+    print('\tsplittype can be one of: nltk, regex, respell')
     sys.exit(1)
 
 db = tools.database(sys.argv[1])
-maxlen = int(sys.argv[3])
-if len(sys.argv) > 5:
-    query = 'src LIKE ? AND msg LIKE ?'
-    args = (sys.argv[4],sys.argv[5])
-else:
-    query ='src LIKE ?'
-    args = (sys.argv[4],)
+maxlen = int(sys.argv[4])
+query = ' OR '.join(['src LIKE ?' for i in range(len(sys.argv)-5)])
+args = tuple(sys.argv[5:])
 
 words = collections.Counter() 
-for i in db.get_iter(query,args):
-    words.update([x.upper() for x in re.findall(r"[\w']+", i.msg) if len(x) <= maxlen])
+if sys.argv[3] == 'nltk':
+    for i in db.get_iter(query,args):
+        thin = ' '.join([x.lower() for x in i.msg.split(' ') if len(x) <= maxlen])
+        words.update(nltk.word_tokenize(thin))
+elif sys.argv[3] == 'regex':
+    wordtokregex = re.compile('([\w'']+|[\:\=][^ ])')
+    for i in db.get_iter(query,args):
+        thin = ' '.join([x.lower() for x in i.msg.split(' ') if len(x) <= maxlen])
+        words.update([word for word in wordtokregex.findall(thin)])
+elif sys.argv[3][0:7] == 'respell':
+    try:
+        maxdist = int(sys.argv[3].split(':')[1])
+    except:
+        maxdist = 0
+    wordtokregex = re.compile('([\w\']+|[\:\=][^ ])')
+    sgst = tools.suggester(maxdist)
+    for i in db.get_iter(query,args):
+        parts = ' '.join([x.upper() for x in i.msg.split(' ') if len(x) <= maxlen])
+        parts = [word for word in wordtokregex.findall(parts)]
+        parts = [sgst.suggest(word) for word in parts]
+        words.update([word for word in parts if word])
  
 print('"---total---"',',',sum(words.values()))   
 print('"---unique---"',',',len(set(words)))
