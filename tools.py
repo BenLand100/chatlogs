@@ -19,6 +19,7 @@
 '''
 
 import os
+import re
 import glob
 import pytz
 import sqlite3
@@ -28,8 +29,8 @@ import json
 import statistics
 
 class message:
-    def __init__(self,when,src,dest,msg):
-        self.src, self.dest, self.msg = src, dest, msg
+    def __init__(self,when,src,dest,msg,cls):
+        self.src, self.dest, self.msg, self.cls = src, dest, msg, cls
         if type(when) is int:
             self.when = datetime.datetime.fromtimestamp(when,tz=datetime.timezone.utc)
         elif isinstance(when,datetime.datetime):
@@ -37,18 +38,18 @@ class message:
         else:
             raise TypeError
     def __str__(self):
-        return str(self.when)+' '+self.src+' '+self.dest+' '+self.msg
+        return seld.cls+' '+str(self.when)+' '+self.src+' '+self.dest+' '+self.msg
     def utc(self):
         return int(self.when.replace(tzinfo=datetime.timezone.utc).timestamp())
     def uid(self):
-        return str(self.utc())+':'+str(self.src)+':'+str(self.dest)+':'+str(hash(self.msg))
+        return self.cls+':'+str(self.utc())+':'+str(self.src)+':'+str(self.dest)+':'+str(hash(self.msg))
 
 class database:
     def __init__(self,db=':memory:'):
         self._db = sqlite3.connect(db)
         if self._table_exists('messages'):
             print('Creating database tables')
-            self._db.execute('CREATE TABLE messages(timestamp INTEGER, src VARCHAR, dest VARCHAR, msg VARCHAR, PRIMARY KEY (timestamp,src,dest,msg) )')
+            self._db.execute('CREATE TABLE messages(timestamp INTEGER, src VARCHAR, dest VARCHAR, msg VARCHAR, cls CARCHAR, PRIMARY KEY (timestamp,src,dest,msg,cls) )')
     def __del__(self):
         self._db.close()
     def _table_exists(self,table):
@@ -57,7 +58,7 @@ class database:
         self._db.commit()
     def add(self,msg):
         try:
-            self._db.execute('INSERT INTO messages VALUES(?,?,?,?)',(msg.utc(),msg.src,msg.dest,msg.msg))
+            self._db.execute('INSERT INTO messages VALUES(?,?,?,?,?)',(msg.utc(),msg.src,msg.dest,msg.msg,msg.cls))
             return True
         except:
             return False
@@ -65,8 +66,8 @@ class database:
         row = next(self._db.execute('SELECT count(timestamp) FROM messages' + (' WHERE ' + where if where else ''),args),None)
         return row[0] if row else 0
     def get_iter(self,where=None,args=()):
-        for row in self._db.execute('SELECT timestamp,src,dest,msg FROM messages' + (' WHERE ' + where if where else ''),args):
-            yield message(row[0],row[1],row[2],row[3])
+        for row in self._db.execute('SELECT timestamp,src,dest,msg,cls FROM messages' + (' WHERE ' + where if where else ''),args):
+            yield message(row[0],row[1],row[2],row[3],row[4])
         
         
 
@@ -74,7 +75,7 @@ months = {'Jan':1,'Feb':2,'Mar':3,'Apr':4,'May':5,'Jun':6,'Jul':7,'Aug':8,'Sep':
 lines = 0
 failed = 0
 
-def parse_irc(db,path):
+def process_irc(db,path):
     global lines, failed
     base = os.path.basename(path).rsplit('.',1)[0]
     chan = base[base.find('#'):]
@@ -96,10 +97,11 @@ def parse_irc(db,path):
                     else:
                         tparts = list(map(int,parts[2].split(':')))
                         dt = datetime.datetime(year,months[parts[0]],int(parts[1]),tparts[0],tparts[1],tparts[2],0,tz)
-                    msg = message(dt,parts[3].strip('<>'),chan,parts[4].strip('\t\r\n') if len(parts) == 5 else '')
+                    msg = message(dt,parts[3].strip('<>'),chan,parts[4].strip('\t\r\n') if len(parts) == 5 else '','IRC')
                     db.add(msg)
             except Exception as e:
                 failed = failed + 1
+    db.commit()
                
 
 def process_hangouts(db,path):
@@ -133,12 +135,86 @@ def process_hangouts(db,path):
                 message_content = event["chat_message"]["message_content"]
                 try:
                     for segment in message_content["segment"]:
+                        lines = lines + 1
                         if segment["type"].lower() in ("TEXT".lower(), "LINK".lower()):
                             text.append(segment["text"].strip())
                 except KeyError:
                     pass 
             except KeyError:
                 continue 
-            msg = message(int(int(timestamp)/10**6),people[sender_id["gaia_id"]],'ME',' '.join(text))
+            msg = message(int(int(timestamp)/10**6),people[sender_id["gaia_id"]],'ME',' '.join(text),'HANGOUTS')
             db.add(msg)
     db.commit()
+    
+def process_msn(db,path):
+    global lines, failed
+    tz = pytz.timezone('US/Eastern')
+    with open(path,'r',encoding='latin-1') as f:
+        first = f.readline()
+        if 'Conversation with' in first:
+            convoreg = re.compile('Conversation with (.+) at (.+) on ([^ ])')
+            match = convoreg.search(first)
+            who = match.group(1)
+            date = match.group(2).rsplit(' ',3)[0].split(' ',1)[1]
+            me = match.group(3)
+            for line in f:
+                lines = lines + 1
+                try:
+                    if 'Conversation with' in line:
+                        match = convoreg.search(first)
+                        who = match.group(1)
+                        date = match.group(2).rsplit(' ',3)[0].split(' ',1)[1]
+                        me = match.group(3)
+                    elif line[0] == '(':
+                        time,rest = line.split(') ',1)
+                        try:
+                            nick,msg = rest.split(': ',1)
+                        except:
+                            nick = '*'
+                            msg = rest  
+                        msg = msg.strip(' \t\r\n')
+                        dt = tz.localize(datetime.datetime.strptime(time + date,'(%I:%M:%S %p%d %b %Y'))
+                        db.add(message(dt,nick,'LINUXMSNCONVO',msg,'MSN-LIN'))
+                except Exception as e:
+                    failed = failed + 1
+        else:
+            people = {}
+            lastmsg = None
+            partreg = re.compile('\|    ([^\(]+) \(([^\)]+)\)')
+            for line in f:
+                lines = lines + 1
+                if line[0] == '|':
+                    if 'Session Start' in line:
+                        date = line[line.find(':')+2:].strip('| \t\n\r')
+                        date = date[date.find(',')+2:]
+                    else:
+                        match = partreg.search(line)
+                        if match:
+                            people[match.group(1)] = match.group(2)
+                elif line[0] == '.':
+                    pass
+                elif line[0] == '[':
+                    if lastmsg:
+                        db.add(lastmsg)
+                    time,rest = line.split(']',1)
+                    dt = tz.localize(datetime.datetime.strptime(time + date,'[%I:%M:%S %p%B %d, %Y'))
+                    rest = rest.strip('\t\n\r ')
+                    try:
+                        who,rest = rest.split(': ')
+                    except:
+                        who = '*'
+                    try:
+                        email = people[who]
+                    except:
+                        email = 'UNKNOWN'
+                        for nick in people.keys():
+                            if nick.find(who[:-4]) != -1:
+                                email = people[nick]
+                                break
+                    lastmsg = message(dt,email,'MSNCONVO',rest,'MSN-WIN')
+                else:
+                    lastmsg.msg += line.strip(' \t\n\r')
+            if lastmsg:
+                db.add(lastmsg)
+    db.commit()
+    

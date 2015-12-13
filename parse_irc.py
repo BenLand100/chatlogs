@@ -21,10 +21,11 @@
 import sys
 import tools
 
-if len(sys.argv) != 3:
-    print('./parse_hangout.py dbfile [he]xchatlogfile')
+if len(sys.argv) < 3:
+    print('./parse_irc.py dbfile [he]xchatlogfile')
     sys.exit(1)
 
 db = tools.database(sys.argv[1])
-tools.process_irc(db,sys.argv[2])
+for path in sys.argv[2:]
+    tools.process_irc(db,path)
 

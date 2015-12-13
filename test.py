@@ -24,13 +24,16 @@ import tools
 import statistics
 
 def stats(db,like='%'):
-    lines = db.count('src LIKE ?',(like,))
+    lines = db.count('src LIKE "'+like+'"')
 
     msglens = [len(msg.msg) for msg in db.get_iter('src LIKE "'+like+'"')]
-
-    mean = statistics.mean(msglens) 
-    stde = statistics.stdev(msglens)
-    rootnorm = lambda lst: sqrt(sum(lst))/sqrt(len(lst))
+    
+    if len(msglens) > 1:
+        mean = statistics.mean(msglens) 
+        stde = statistics.stdev(msglens)
+    else:
+        mean,stde = 0,0
+    rootnorm = lambda lst: sqrt(sum(lst))/sqrt(len(lst)) if len(lst) > 0 else 0
     rmshi = rootnorm([(msglen - mean)**2.0 for msglen in msglens if msglen > mean])
     rmslo = rootnorm([(msglen - mean)**2.0 for msglen in msglens if msglen < mean])
 

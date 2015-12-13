@@ -22,10 +22,11 @@ import sys
 import tools
 
 if len(sys.argv) < 3:
-    print('./parse_hangout.py dbfile hangoutfile')
+    print('./parse_msn.py dbfile msnlogfile')
     sys.exit(1)
 
 db = tools.database(sys.argv[1])
 for path in sys.argv[2:]:
-    tools.process_hangouts(db,path)
+    print(path)
+    tools.process_msn(db,path)
 

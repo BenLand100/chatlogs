@@ -36,7 +36,7 @@ class mkchain:
             self._chain = chain
         self._ngramlen = ngramlen
         self._table = 'chain_'+str(ngramlen)+'_'+src+'_'+str(maxlen)
-        if not next(self._chain.execute('SELECT name FROM sqlite_master WHERE type="table" AND name="'+self._table+'"'),None):
+        if not next(self._chain.execute('SELECT name FROM sqlite_master WHERE type="table" AND name=?',(self._table,)),None):
             self._chain.execute('CREATE TABLE '+self._table+' ('+', '.join([chr(x+ord('a'))+' VARCHAR' for x in range(ngramlen)])+', count INTEGER)')
             self._chain.execute('CREATE UNIQUE INDEX ngram_'+self._table+' ON '+self._table+'('+(', '.join([chr(x+ord('a')) for x in range(ngramlen)]))+')')
             nick = 'src LIKE "'+src+'"' if src != 'ALL' else 'src != "*"'
@@ -73,6 +73,7 @@ class mkchain:
                 msg = msg + (cur[-1],)
             if len(msg) > 5 and len(msg) < 50:
                 return msg
+        return ()
 
 random.seed()
 
