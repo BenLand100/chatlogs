@@ -239,7 +239,7 @@ class suggester:
             self._valid.add(word)
             return word
             
-        if maxdist > 0:    
+        if self._maxdist > 0:    
             suggestions = self._spelling.suggest(word)
             if suggestions and nltk.edit_distance(word, suggestions[0]) <= self._maxdist:
                 self._suggested[word] = suggestions[0]
