@@ -24,6 +24,7 @@ import glob
 import pytz
 import nltk
 import json
+from lxml import etree
 import sqlite3
 import tarfile
 import enchant
@@ -40,7 +41,7 @@ class message:
         else:
             raise TypeError
     def __str__(self):
-        return seld.cls+' '+str(self.when)+' '+self.src+' '+self.dest+' '+self.msg
+        return self.cls+' '+str(self.when)+' '+self.src+' '+self.dest+' '+self.msg
     def utc(self):
         return int(self.when.replace(tzinfo=datetime.timezone.utc).timestamp())
     def uid(self):
@@ -108,6 +109,23 @@ def process_irc(db,path):
                 failed = failed + 1
     db.commit()
                
+def process_facebook(db,path):
+    global lines, failed
+    data = etree.parse(path)
+    for div in data.getiterator(tag='div'):
+        if div.get('class') == 'message':
+            thread = div.getparent()
+            p = thread[thread.index(div)+1]
+            if p.tag != 'p':
+                print('EGADS')
+                continue
+            dt = datetime.datetime.strptime(div[0][1].text,'%A, %B %d, %Y at %I:%M%p %Z')
+            sender = div[0][0].text
+            text = p.text if p.text else ''
+            msg = message(dt,sender,'ME',text,'FACEBOOK')
+            db.add(msg)
+    db.commit()
+    
 
 def process_hangouts(db,path):
     global lines, failed
