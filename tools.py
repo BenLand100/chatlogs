@@ -85,7 +85,7 @@ def process_irc(db,path):
     base = os.path.basename(path).rsplit('.',1)[0]
     chan = base[base.find('#'):]
     tz = pytz.timezone('US/Eastern')
-    with open(path,'r') as f:
+    with open(path,'r',encoding='latin-1') as f:
         for line in f:
             lines = lines + 1
             try:
