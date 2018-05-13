@@ -25,6 +25,7 @@ import pytz
 import nltk
 import json
 from lxml import etree
+import mailbox
 import sqlite3
 import tarfile
 import enchant
@@ -114,6 +115,7 @@ def process_facebook(db,path):
     data = etree.parse(path)
     for div in data.getiterator(tag='div'):
         if div.get('class') == 'message':
+            lines = lines + 1
             thread = div.getparent()
             p = thread[thread.index(div)+1]
             if p.tag != 'p':
@@ -125,7 +127,22 @@ def process_facebook(db,path):
             msg = message(dt,sender,'ME',text,'FACEBOOK')
             db.add(msg)
     db.commit()
-    
+   
+def process_mbox(db,path):
+    global lines, failed
+    mbox = mailbox.mbox(path,create=False)
+    mbox.lock()
+    try:
+        for emsg in mbox:
+            dt = datetime.datetime.strptime(emsg['date'],'%a, %d %b %Y %H:%M:%S %z')
+            sender = emsg['from']
+            dest = emsg['to']
+            text = str(emsg.get_payload(decode=True))
+            msg = message(dt,sender,dest,text,'TEXTS')
+            db.add(msg)
+        db.commit()
+    finally:
+        mbox.unlock()
 
 def process_hangouts(db,path):
     global lines, failed
